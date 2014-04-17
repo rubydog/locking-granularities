@@ -15,6 +15,7 @@ typedef enum {GRID, ROW, CELL, NONE} grain_type;
 int gridsize = 0;
 int grid[MAXGRIDSIZE][MAXGRIDSIZE];
 int threads_left;
+pthread_mutex_t lock;
 
 time_t start_t, end_t;
 
@@ -54,14 +55,13 @@ long sum_grid(int grid[MAXGRIDSIZE][MAXGRIDSIZE], int gridsize)
 void error(char* msg)
 {
 	perror(msg);
-	exit(0);
+	exit(1);
 }
 
 void* do_swaps(void *args)
 {
 	int i, row1, row2, column1, column2, temp;
-	grain_type* gain_type = (grain_type*)args;
-
+	grain_type* gain_type = (grain_type *)args;
 	threads_left++;
 
 	for (i = 0; i < NO_SWAPS; i++)
@@ -73,16 +73,18 @@ void* do_swaps(void *args)
 
 		if (*gain_type == GRID)
 		{
-			;
+			pthread_mutex_lock(&lock);
+			grid;
 		}
 		else if (*gain_type == ROW)
 		{
-			// row lock
+			pthread_mutex_lock(&lock);
+			grid[row1];
+			grid[row2];
 		}
 		else if (*gain_type == CELL)
 		{
-			pthread_mutex_lock(grid[row1][column1]);
-			phtread_mutex_lock(grid[row2][column2]);
+			pthread_mutex_lock(&lock);
 		}
 
 		temp = grid[row1][column1];
@@ -93,15 +95,15 @@ void* do_swaps(void *args)
 		// Release lock
 		if (*gain_type == GRID)
 		{
-			// grid lock
+			pthread_mutex_unlock(&lock);
 		}
 		else if (*gain_type == ROW)
 		{
-			// row lock
+			pthread_mutex_unlock(&lock);
 		}
 		else if (*gain_type == CELL)
 		{
-			// cell lock
+			pthread_mutex_unlock(&lock);
 		}
 	}
 
@@ -121,24 +123,22 @@ int main(int argc, char** argv)
 	long init_sum = 0;
 	long final_sum = 0;
 	int i;
-	char gt;
 
 	if (argc > 3)
 	{
 		gridsize = atoi(argv[1]);
-		if (gridsize > MAXGRIDSIZE || gridsize << 1)
+		if (gridsize > MAXGRIDSIZE || gridsize < 1)
 			error("Grid size must be between 1 to 10\n");
 
 		nthreads = atoi(argv[2]);
 		if (nthreads > MAXTHREADS || nthreads < 1)
 			error("Number of threads must be between 1 to 1000\n");
 
-		gt = argv[3][1];
-		if (gt == 'g' || gt =='G')
+		if (argv[3][0] == 'g' || argv[3][0] =='G')
 			row_granularity = GRID;
-		else if (gt == 'r' || gt == 'R')
+		else if (argv[3][0] == 'r' || argv[3][0] == 'R')
 			row_granularity = ROW;
-		else if (gt == 'c' || gt == 'C')
+		else if (argv[3][0] == 'c' || argv[3][0] == 'C')
 			row_granularity = CELL;
 	}
 	else
@@ -153,6 +153,7 @@ int main(int argc, char** argv)
 
 	srand((unsigned int)time( NULL ));
 
+	pthread_mutex_init(&lock, NULL);
 	time(&start_t);
 	for (i = 0; i < nthreads; i++)
 	{
@@ -163,6 +164,8 @@ int main(int argc, char** argv)
 
 	for (i = 0; i < nthreads; i++)
 		pthread_detach(threads[i]);
+
+	pthread_mutex_destroy(&lock);
 
 	while(1)
 	{
